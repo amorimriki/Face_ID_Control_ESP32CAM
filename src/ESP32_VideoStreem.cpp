@@ -27,7 +27,6 @@ const char* password = "4da883991d45zaQ239aZwpL";
 
 #define LED_GPIO_PIN      4  // Pino do LED embutido
 
-
 // =================== CONFIG DA CÂMERA ===================
 camera_config_t camera_config = {
   .pin_pwdn       = PWDN_GPIO_NUM,
@@ -52,10 +51,13 @@ camera_config_t camera_config = {
   .ledc_timer     = LEDC_TIMER_0,
   .ledc_channel   = LEDC_CHANNEL_0,
   .pixel_format   = PIXFORMAT_GRAYSCALE,  // Mudando para RGB565
-  .frame_size     = FRAMESIZE_VGA,
+  .frame_size     = FRAMESIZE_HVGA,
   .fb_count       = 2,
   .grab_mode      = CAMERA_GRAB_WHEN_EMPTY
 };
+
+// =================== FLAG DE STREAMING ===================
+volatile bool streaming = true;  // Flag para controlar o streaming
 
 // =================== STREAM HANDLER ===================
 static esp_err_t stream_handler(httpd_req_t *req) {
@@ -64,9 +66,8 @@ static esp_err_t stream_handler(httpd_req_t *req) {
 
   res = httpd_resp_set_type(req, "multipart/x-mixed-replace; boundary=frame");
   if (res != ESP_OK) return res;
-  digitalWrite(LED_GPIO_PIN, HIGH);
 
-  while (true) {
+  while (streaming) {  // Verifica a flag de streaming
     fb = esp_camera_fb_get();
     if (!fb) {
       Serial.println("Erro ao obter frame");
@@ -96,93 +97,160 @@ static esp_err_t stream_handler(httpd_req_t *req) {
     free(jpg_buf);
 
     if (res != ESP_OK) break;
-    delay(5);  // Ajuste fino de fluidez
+    delay(10);  // Ajuste fino de fluidez
   }
-  digitalWrite(LED_GPIO_PIN, LOW);
+
   return res;
 }
 
+// =================== HANDLER PARA LED ===================
+static esp_err_t led_handler(httpd_req_t *req) {
+  char query[64];
+  if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
+    char param[8];
+    if (httpd_query_key_value(query, "on", param, sizeof(param)) == ESP_OK) {
+      int estado = atoi(param);
+      digitalWrite(LED_GPIO_PIN, estado ? HIGH : LOW);
+      
+      // Interrompe o stream por um momento quando o LED for alterado
+      streaming = false;
+      delay(500); // Aguarda um pequeno tempo para garantir a interrupção do stream
+
+      // Resposta ao cliente
+      const char* ledStatus = estado ? "LED Ligado" : "LED Desligado";
+      httpd_resp_sendstr(req, ledStatus);
+
+      // Reativa o streaming após a mudança do LED
+      delay(500);  // Aguarda a resposta ser enviada antes de reiniciar o streaming
+      streaming = true;
+
+      return ESP_OK;
+    }
+
+    if (httpd_query_key_value(query, "status", param, sizeof(param)) == ESP_OK) {
+      int estado = digitalRead(LED_GPIO_PIN);
+      return httpd_resp_sendstr(req, estado ? "1" : "0");
+    }
+  }
+  return httpd_resp_sendstr(req, "Parâmetro inválido");
+}
 // =================== HANDLER PARA A PÁGINA PRINCIPAL ===================
 static const char MAIN_page[] PROGMEM = R"rawliteral(
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>ESP32-CAM Face Control</title>
-      <style>
-        body {
-          background: #f5f5f5;
-          font-family: Arial, sans-serif;
-          text-align: center;
-          padding: 2rem;
-        }
-        img, canvas {
-          width: 100%;
-          max-width: 400px;
-          border-radius: 10px;
-          margin-bottom: 1rem;
-        }
-        .controls {
-          margin-top: 10px;
-        }
-        button {
-          padding: 10px 20px;
-          margin: 5px;
-          font-size: 16px;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-          background-color: #007bff;
-          color: white;
-        }
-        button:hover {
-          background-color: #0056b3;
-        }
-      </style>
-    </head>
-    <body>
-      <h1>ESP32-CAM Reconhecimento Facial</h1>
-      
-      <img id="video" src="/stream" alt="Stream da câmera">
-      <canvas id="canvas" style="display:none;"></canvas>
-    
-      <div class="controls">
-        <button onclick="capture()">Capturar Foto</button>
-      </div>
-      
-      <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-    
-        function capture() {
-          canvas.style.display = 'block';
-          const context = canvas.getContext('2d');
-          canvas.width = video.width;
-          canvas.height = video.height;
-          context.drawImage(video, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob(sendImage, 'image/jpeg');
-        }
-    
-        function sendImage(blob) {
-          const formData = new FormData();
-          formData.append("file", blob, "capture.jpg");
-          
-          fetch("http://192.168.1.100:8000/photo", {
-            method: "POST",
-            body: formData
-          }).then(res => res.text())
-            .then(txt => alert("Resposta: " + txt))
-            .catch(err => alert("Erro: " + err));
-        }
-      </script>
-    </body>
-    </html>
-    )rawliteral";
-    
-    // Função para servir o HTML
-    static esp_err_t index_handler(httpd_req_t *req) {
-        httpd_resp_set_type(req, "text/html");
-        return httpd_resp_send(req, MAIN_page, strlen(MAIN_page));
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <title>ESP32-CAM Face Control</title>
+    <style>
+      body {
+        background: #f5f5f5;
+        font-family: Arial, sans-serif;
+        text-align: center;
+        padding: 2rem;
+      }
+      canvas {
+        width: 100%;
+        max-width: 400px;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+      }
+        img {
+      width: 80%;
+      height: auto;
     }
+      .controls {
+        margin-top: 10px;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        font-size: 16px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        background-color: #007bff;
+        color: white;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+    </style>
+  </head>
+<body>
+  <h1>ESP32-CAM Reconhecimento Facial</h1>
+
+  <img id="video" src="/stream" alt="Stream">
+  <canvas id="canvas" style="display:none;"></canvas>
+
+  <div class="controls">
+    <button onclick="capture()">Capturar Foto</button>
+    <button id="ledBtn" onclick="toggleLED()">Ligar LED</button>
+  </div>
+
+  <p id="ip-info"></p>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ledBtn = document.getElementById("ledBtn");
+    let ledOn = false;
+    const esp32IP = window.location.origin;
+
+    document.getElementById("ip-info").textContent = `Conectado ao ESP32 em: ${esp32IP}`;
+
+    function capture() {
+      canvas.style.display = 'block';
+      const context = canvas.getContext('2d');
+      canvas.width = video.width;
+      canvas.height = video.height;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(sendImage, 'image/jpeg');
+    }
+
+    function sendImage(blob) {
+      const formData = new FormData();
+      formData.append("file", blob, "capture.jpg");
+
+      fetch("http://192.168.1.100:8000/photo", {
+        method: "POST",
+        body: formData
+      }).then(res => res.text())
+        .then(txt => alert("Resposta: " + txt))
+        .catch(err => alert("Erro: " + err));
+    }
+
+    function toggleLED() {
+      const src = video.src;
+      video.src = ''; // Interrompe o stream
+
+      const newState = !ledOn;
+
+      fetch(`${esp32IP}/led?on=${newState ? 1 : 0}`)
+        .then(res => res.text())
+        .then(txt => {
+          ledOn = newState;
+          updateLEDButton();
+          video.src = src; // Retoma o stream
+        })
+        .catch(err => {
+          alert("Erro LED: " + err);
+          video.src = src; // Retoma mesmo se erro
+        });
+    }
+
+    function updateLEDButton() {
+      ledBtn.textContent = ledOn ? "Desligar LED" : "Ligar LED";
+    }
+  </script>
+</body>
+  </html>
+  )rawliteral";
+
+
+// =================== FUNÇÃO PARA SERVIR O HTML ===================
+static esp_err_t index_handler(httpd_req_t *req) {
+    httpd_resp_set_type(req, "text/html");
+    return httpd_resp_send(req, MAIN_page, strlen(MAIN_page));
+}
 
 // =================== START SERVER ===================
 void startCameraServer() {
@@ -203,9 +271,19 @@ void startCameraServer() {
     .handler  = stream_handler,
     .user_ctx = NULL
   };
+  
+  // Handler para controle do LED
+  httpd_uri_t led_uri = {
+    .uri      = "/led",
+    .method   = HTTP_GET,
+    .handler  = led_handler,
+    .user_ctx = NULL
+  };
+
 
   httpd_handle_t server = NULL;
   if (httpd_start(&server, &config) == ESP_OK) {
+    httpd_register_uri_handler(server, &led_uri);
     httpd_register_uri_handler(server, &index_uri);
     httpd_register_uri_handler(server, &stream_uri);
     Serial.println("Servidor de vídeo ativo!");
@@ -232,6 +310,7 @@ void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(false);
   pinMode(LED_GPIO_PIN, OUTPUT);
+  digitalWrite(LED_GPIO_PIN, LOW); 
   connectToWiFi();
 
   if (esp_camera_init(&camera_config) == ESP_OK) {
@@ -247,3 +326,5 @@ void setup() {
 void loop() {
   delay(10);
 }
+
+
