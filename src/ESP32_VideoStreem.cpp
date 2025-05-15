@@ -1,10 +1,18 @@
+/*
+ESP32_VideoStreem.cpp
+*/
+
+
 #include "esp_camera.h"
 #include <WiFi.h>
 #include "esp_http_server.h"
 
 // =================== CONFIG WI-FI ===================
-const char* ssid = "ZON-ZON_MEO";
-const char* password = "4da883991d45zaQ239aZwpL";
+//const char* ssid = "ZON-ZON_MEO";
+//const char* password = "4da883991d45zaQ239aZwpL";
+
+const char* ssid = "iPhone de Ricardo";
+const char* password = "mariagata";
 
 // =================== PINAGEM ESP32-CAM AI-THINKER ===================
 #define PWDN_GPIO_NUM     32
@@ -50,7 +58,7 @@ camera_config_t camera_config = {
   .xclk_freq_hz   = 20000000,
   .ledc_timer     = LEDC_TIMER_0,
   .ledc_channel   = LEDC_CHANNEL_0,
-  .pixel_format   = PIXFORMAT_GRAYSCALE,  // Mudando para RGB565
+  .pixel_format   = PIXFORMAT_GRAYSCALE,  // A Cor para PIXFORMAT_RGB565
   .frame_size     = FRAMESIZE_HVGA,
   .fb_count       = 2,
   .grab_mode      = CAMERA_GRAB_WHEN_EMPTY
@@ -154,7 +162,7 @@ static const char MAIN_page[] PROGMEM = R"rawliteral(
         margin-bottom: 1rem;
       }
         img {
-      width: 80%;
+      width: 50%;
       height: auto;
     }
       .controls {
@@ -177,17 +185,16 @@ static const char MAIN_page[] PROGMEM = R"rawliteral(
   </head>
 <body>
   <h1>ESP32-CAM Reconhecimento Facial</h1>
-
+  <p id="ip-info"></p>
   <img id="video" src="/stream" alt="Stream">
-  <canvas id="canvas" style="display:none;"></canvas>
-
+  
   <div class="controls">
     <button onclick="capture()">Capturar Foto</button>
     <button id="ledBtn" onclick="toggleLED()">Ligar LED</button>
   </div>
-
-  <p id="ip-info"></p>
-
+<div>
+  <canvas id="canvas" style="display:none;"></canvas>
+</div>
   <script>
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');

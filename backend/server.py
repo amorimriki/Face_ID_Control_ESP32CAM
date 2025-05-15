@@ -1,55 +1,76 @@
-# server.py
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import PlainTextResponse
-import face_recognition
-import numpy as np
-import cv2
 import os
-from io import BytesIO
-from PIL import Image
+import shutil
+import face_recognition
 
 app = FastAPI()
 
-known_faces = []
-known_names = []
+# Diretório onde guardamos rostos conhecidos
+KNOWN_DIR = "known_faces"
+os.makedirs(KNOWN_DIR, exist_ok=True)
 
-# Pasta para imagens de treino
-TRAIN_DIR = "treino"
+# Variáveis globais
+known_faces_encodings = []
+known_faces_names = []
 
-def carregar_treinamento():
-    for nome in os.listdir(TRAIN_DIR):
-        caminho = os.path.join(TRAIN_DIR, nome)
-        img = face_recognition.load_image_file(caminho)
-        encodings = face_recognition.face_encodings(img)
+# Carrega as faces conhecidas da pasta
+def load_known_faces():
+    known_faces_encodings.clear()
+    known_faces_names.clear()
+    
+    for file in os.listdir(KNOWN_DIR):
+        path = os.path.join(KNOWN_DIR, file)
+        image = face_recognition.load_image_file(path)
+        encodings = face_recognition.face_encodings(image)
         if encodings:
-            known_faces.append(encodings[0])
-            known_names.append(os.path.splitext(nome)[0])
-
-@app.post("/treinar")
-def treinar(file: UploadFile = File(...)):
-    image = face_recognition.load_image_file(BytesIO(file.file.read()))
-    encodings = face_recognition.face_encodings(image)
-    if encodings:
-        nome = file.filename.split('.')[0]
-        with open(f"{TRAIN_DIR}/{file.filename}", "wb") as f:
-            f.write(file.file.read())
-        return {"status": f"{nome} adicionado com sucesso!"}
-    return {"erro": "Nenhum rosto detectado."}
-
-@app.post("/photo")
-async def reconhecer(file: UploadFile = File(...)):
-    image = face_recognition.load_image_file(BytesIO(await file.read()))
-    unknown_encoding = face_recognition.face_encodings(image)
-
-    if unknown_encoding:
-        matches = face_recognition.compare_faces(known_faces, unknown_encoding[0])
-        if True in matches:
-            idx = matches.index(True)
-            return PlainTextResponse(f"Reconhecido: {known_names[idx]}")
+            known_faces_encodings.append(encodings[0])
+            known_faces_names.append(os.path.splitext(file)[0])
         else:
-            return PlainTextResponse("Rosto desconhecido.")
-    return PlainTextResponse("Nenhum rosto detectado.")
+            print(f"[!] Nenhum rosto encontrado em {file}")
 
-@app.on_event("startup")
-def startup_event():
-    carregar_treinamento()
+# --------------------------
+# ENDPOINT 1: Treino
+# --------------------------
+@app.post("/train", response_class=PlainTextResponse)
+async def train_face(name: str, file: UploadFile = File(...)):
+    # Guardar a imagem com o nome da pessoa
+    filename = f"{name}.jpg"
+    filepath = os.path.join(KNOWN_DIR, filename)
+    with open(filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Recarregar todos os rostos conhecidos
+    load_known_faces()
+
+    return f"Rosto de {name} treinado com sucesso!"
+
+# --------------------------
+# ENDPOINT 2: Reconhecimento
+# --------------------------
+@app.post("/recognize", response_class=PlainTextResponse)
+async def recognize_face(file: UploadFile = File(...)):
+    # Guardar a imagem temporária
+    temp_path = "temp.jpg"
+    with open(temp_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Carregar imagem e extrair encoding
+    unknown_image = face_recognition.load_image_file(temp_path)
+    unknown_encodings = face_recognition.face_encodings(unknown_image)
+
+    if not unknown_encodings:
+        return "Nenhum rosto detectado"
+
+    unknown_encoding = unknown_encodings[0]
+
+    # Comparar com os rostos conhecidos
+    load_known_faces()
+    results = face_recognition.compare_faces(known_faces_encodings, unknown_encoding)
+    distances = face_recognition.face_distance(known_faces_encodings, unknown_encoding)
+
+    if True in results:
+        best_match_index = distances.argmin()
+        return f"Rosto reconhecido: {known_faces_names[best_match_index]}"
+    
+    return "Rosto não reconhecido"
