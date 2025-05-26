@@ -30,11 +30,11 @@ app.add_middleware(
 # -----------------------------
 
 
-KNOWN_DIR = "known_faces/jpg"
+
 BACKUP_DIR = "known_faces/backup_faces"
 TEMP_DIR = "known_faces/temp"
 
-os.makedirs(KNOWN_DIR, exist_ok=True)
+
 os.makedirs(BACKUP_DIR, exist_ok=True)
 os.makedirs(TEMP_DIR, exist_ok=True)
 
@@ -131,7 +131,7 @@ async def recognize_face(file: UploadFile = File(...)):
         return JSONResponse(content={"error": "Nenhum rosto conhecido carregado."})
 
     distances = [np.linalg.norm(np.array(emb) - unknown_embedding) for emb in embeddings]
-    threshold = 5
+    threshold = 5.5
 
     best_match_index = np.argmin(distances)
     os.remove(temp_path)

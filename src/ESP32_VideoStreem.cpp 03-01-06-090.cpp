@@ -365,6 +365,7 @@ static const char MAIN_page[] PROGMEM = R"rawliteral(
   })
   .then(txt => alert("Resposta do servidor: " + txt))
   .catch(err => alert("Erro no envio: " + err));
+  carregarNomesRegistados()
 }
 
     function toggleLED() {
@@ -391,39 +392,39 @@ static const char MAIN_page[] PROGMEM = R"rawliteral(
     ledBtn.onclick = toggleLED;
 
     // Função para carregar nomes registados do backend e mostrar na lista
+   
     async function carregarNomesRegistados() {
-      try {
-        const resposta = " "
-        resposta = await fetch(namesUrl, { cache: "no-store" });
-        console.log("Resposta recebida:", resposta);
-
-        const data = await resposta.json();
-        console.log("JSON parseado:", data);
-
-        const nomes = data.known_names;
-        console.log("Nomes extraídos:", nomes);
-
-        const lista = document.getElementById('lista-nomes');
-        lista.innerHTML = '';
-        nomes.forEach(nome => {
-          const item = document.createElement('li');
-          item.textContent = nome;
-          lista.appendChild(item);
-        });
-      } catch (err) {
-        console.error("Erro ao carregar nomes:", err);
-      }
-    }
+          try {
+            var resposta = await fetch(namesUrl);
+            console.log(resposta);
+            if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
+            var data = await resposta.json();
+            console.log(data);
+            var nomes = data.known_names;
+            console.log(data);
+            var lista = document.getElementById('lista-nomes');
+            lista.innerHTML = "";
+            nomes.forEach(nome => {
+              var li = document.createElement('li');
+              li.textContent = nome;
+              lista.appendChild(li);
+            });
+          } catch (err) {
+            console.error("Erro ao carregar nomes:", err);
+          }
+        }
+         console.log("Nomes carregados");
 
     function init() {
     console.log("Página carregada ou reativada");
     document.getElementById("server-info").textContent = `Conectado ao API FaceID em: ${serverURL}`;
     carregarNomesRegistados();
-    console.log("Nomes carregados");
+   
   }
 const recognizeBtn = document.getElementById('recognizeBtn');
 
 recognizeBtn.onclick = () => {
+  carregarNomesRegistados();
   captureAndRecognize();
 };
 
