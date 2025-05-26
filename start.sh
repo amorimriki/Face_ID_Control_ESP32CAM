@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Nome do ambiente virtual
-VENV_DIR="venv"
+VENV_DIR="backend/venv"
 
 # Verifica se o ambiente virtual já existe
 if [ ! -d "$VENV_DIR" ]; then
@@ -14,10 +14,11 @@ source $VENV_DIR/bin/activate
 
 # Instala os requisitos
 echo "[+] A instalar dependências..."
-pip install --upgrade pip
-pip install fastapi uvicorn git+https://github.com/ageitgey/face_recognition_models face_recognition python-multipart 
+pip install --upgrade pip setuptools wheel
+#pip install numpy==1.24.4
+pip install fastapi uvicorn deepface python-multipart tf-keras
 
 # Corre o servidor FastAPI
-cd backend
-echo "[+] A iniciar o servidor FastAPI em http://0.0.0.0:8000 ..."
-uvicorn server:app --host 0.0.0.0 --port 8000 --reload
+
+echo "[+] A iniciar o servidor FastAPI em --host 0.0.0.0 --port 8000 "
+uvicorn backend.server:app --host 0.0.0.0 --port 8000

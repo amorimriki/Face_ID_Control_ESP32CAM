@@ -1,4 +1,5 @@
 {
     "idf.pythonInstallPath": "/opt/anaconda3/bin/python",
-    "C_Cpp.errorSquiggles": "disabled"
+    "C_Cpp.errorSquiggles": "disabled",
+    "idf.port": "/dev/tty.usbserial-14320"
 }
