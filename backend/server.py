@@ -104,6 +104,9 @@ async def train_face(name: str = Form(...), files: list[UploadFile] = File(...))
 
     save_embeddings(embeddings, names)
     print(f"Treino concluído: {saved} imagens treinadas para {name}")
+    if saved == 0 :
+        return JSONResponse(content={"error": "Nenhum rosto detectado"})
+    
     return f"{saved} imagens de {name} treinadas com sucesso!"
 
 
@@ -138,7 +141,7 @@ async def recognize_face(file: UploadFile = File(...)):
     if distances[best_match_index] < threshold:
         return JSONResponse(content={"result": f"Rosto reconhecido: {names[best_match_index]}"})
     else:
-        return JSONResponse(content={"result": f"Rosto não reconhecido (min distance: {distances[best_match_index]:.4f})"})
+        return JSONResponse(content={"error": f"Rosto não reconhecido (min distance: {distances[best_match_index]:.4f})"})
 
 
 @app.get("/known_names", response_class=JSONResponse)
