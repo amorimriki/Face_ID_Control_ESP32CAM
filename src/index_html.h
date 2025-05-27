@@ -203,17 +203,29 @@ static const char MAIN_page[] PROGMEM = R"rawliteral(
         });
       }
       function capturePhoto(index) {
-        // Ajustar canvas para o vídeo
-        canvas.width = video.videoWidth || video.naturalWidth;
-        canvas.height = video.videoHeight || video.naturalHeight;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => {
-          capturedPhotos[index] = blob;
-          updatePhotoSlot(index, URL.createObjectURL(blob));
-          updateTrainButton();
-        }, "image/jpeg");
+      const width = video.videoWidth || video.naturalWidth;
+      const height = video.videoHeight || video.naturalHeight;
+
+      if (width === 0 || height === 0) {
+        console.error("Vídeo não carregado ainda, não é possível capturar.");
+        return;
       }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, width, height);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          console.error("Erro: blob nulo ao capturar foto.");
+          return;
+        }
+        capturedPhotos[index] = blob;
+        updatePhotoSlot(index, URL.createObjectURL(blob));
+        updateTrainButton();
+      }, "image/jpeg");
+    }
 
       function updatePhotoSlot(index, url) {
         const img = document.getElementById("photo" + index);
@@ -379,6 +391,7 @@ static const char MAIN_page[] PROGMEM = R"rawliteral(
             //alert("Erro no reconhecimento: " + err);
           }
         }, "image/jpeg");
+        window.location.reload(true);
       }
 
       window.onload = init;
